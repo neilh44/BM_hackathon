@@ -1,0 +1,10 @@
+flask
+langchain-community
+markitdown
+groq
+sentence-transformers 
+langchain-huggingface
+unstructured
+langchain
+chromadb
+python-dotenv
