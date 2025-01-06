@@ -6,9 +6,10 @@ from pdf_processor import PDFProcessor
 from vector_store import VectorStore
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)
 pdf_processor = PDFProcessor()
 vector_store = VectorStore()
+
 @app.route('/')
 def index():
     return render_template('index.html')
