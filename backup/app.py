@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 from flask import Flask, request, jsonify, render_template
 from pdf_processor import PDFProcessor
 from vector_store import VectorStore
@@ -9,6 +6,7 @@ import os
 app = Flask(__name__)
 pdf_processor = PDFProcessor()
 vector_store = VectorStore()
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -26,7 +24,7 @@ def upload_file():
         temp_path = 'temp.pdf'
         file.save(temp_path)
         
-        # Process the PDF
+        # Process the PDF using PDFProcessor which already handles both text and image-based PDFs
         markdown_path = pdf_processor.convert_to_markdown(temp_path)
         collection_name = vector_store.load_to_vectorstore(markdown_path)
         
@@ -37,11 +35,9 @@ def upload_file():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     finally:
-        # Clean up temporary files
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        if os.path.exists(markdown_path):
-            os.remove(markdown_path)
+
 @app.route('/query', methods=['POST'])
 def query_document():
     try:

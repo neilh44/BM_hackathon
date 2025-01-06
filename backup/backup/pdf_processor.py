@@ -7,7 +7,6 @@ from PIL import Image
 import re
 import os
 from pathlib import Path
-from supabase import create_client
 
 class PDFAnalyzer:
     def __init__(self):
@@ -100,17 +99,9 @@ class PDFProcessor:
         self.md = MarkItDown()
         self.analyzer = PDFAnalyzer()
         self.ocr_processor = OCRProcessor()
-        self.supabase = create_client(
-            os.getenv('SUPABASE_URL'),
-            os.getenv('SUPABASE_KEY')
-        )
         
-        # Create data directory if it doesn't exist
-        os.makedirs('/data', exist_ok=True)
-        
-        log_path = os.path.join('/data', f'pdf_processor_{datetime.now().strftime("%Y%m%d")}.log')
         logging.basicConfig(
-            filename=log_path,
+            filename=f'pdf_processor_{datetime.now().strftime("%Y%m%d")}.log',
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
@@ -121,26 +112,20 @@ class PDFProcessor:
         Convert PDF to markdown, automatically detecting if it needs OCR or text processing
         """
         try:
-            # Store original PDF in /data
-            temp_pdf = os.path.join('/data', os.path.basename(pdf_path))
-            with open(pdf_path, 'rb') as src, open(temp_pdf, 'wb') as dst:
-                dst.write(src.read())
-            
             # Analyze PDF content type
-            content_type, confidence = self.analyzer.analyze_pdf(temp_pdf)
+            content_type, confidence = self.analyzer.analyze_pdf(pdf_path)
             self.logger.info(f"PDF analyzed as {content_type} with {confidence:.2%} confidence")
             
-            filename = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
-            temp_path = os.path.join('/data', filename)
+            output_filename = f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
             
             if content_type == 'text':
                 # Process text-based PDF
-                result = self.md.convert(temp_pdf)
-                with open(temp_path, 'w', encoding='utf-8') as f:
+                result = self.md.convert(pdf_path)
+                with open(output_filename, 'w', encoding='utf-8') as f:
                     f.write(result.text_content)
             else:
                 # Process image-based PDF
-                temp_dir = self._pdf_to_images(temp_pdf)
+                temp_dir = self._pdf_to_images(pdf_path)
                 try:
                     markdown_contents = []
                     for image_file in sorted(os.listdir(temp_dir)):
@@ -149,23 +134,13 @@ class PDFProcessor:
                             markdown_content = self.ocr_processor.convert_to_markdown(image_path)
                             markdown_contents.append(markdown_content)
                     
-                    with open(temp_path, 'w', encoding='utf-8') as f:
+                    with open(output_filename, 'w', encoding='utf-8') as f:
                         f.write('\n\n'.join(markdown_contents))
                 finally:
                     self._cleanup_temp_files(temp_dir)
             
-            # Upload to Supabase
-            with open(temp_path, 'rb') as f:
-                self.supabase.storage \
-                    .from_('markdown-files') \
-                    .upload(filename, f)
-            
-            # Cleanup temp files
-            os.remove(temp_path)
-            os.remove(temp_pdf)
-            
-            self.logger.info(f"Converted {pdf_path} and uploaded as {filename}")
-            return filename
+            self.logger.info(f"Converted {pdf_path} to {output_filename}")
+            return output_filename
             
         except Exception as e:
             self.logger.error(f"PDF conversion error: {str(e)}")
@@ -173,7 +148,7 @@ class PDFProcessor:
 
     def _pdf_to_images(self, pdf_path: str) -> str:
         """Convert PDF pages to images"""
-        temp_dir = os.path.join('/data', f"temp_images_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        temp_dir = f"temp_images_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         os.makedirs(temp_dir, exist_ok=True)
         
         try:

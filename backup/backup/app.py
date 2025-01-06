@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 from flask import Flask, request, jsonify, render_template
 from pdf_processor import PDFProcessor
 from vector_store import VectorStore
@@ -9,6 +6,7 @@ import os
 app = Flask(__name__)
 pdf_processor = PDFProcessor()
 vector_store = VectorStore()
+
 @app.route('/')
 def index():
     return render_template('index.html')

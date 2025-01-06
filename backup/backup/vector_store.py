@@ -7,14 +7,12 @@ from groq import Groq
 import os
 import logging
 import shutil
-from supabase import create_client
 
 class VectorStore:
     def __init__(self):
         # Initialize logging
-        log_path = os.path.join('/data', f'vectorstore_{datetime.now().strftime("%Y%m%d")}.log')
         logging.basicConfig(
-            filename=log_path,
+            filename=f'vectorstore_{datetime.now().strftime("%Y%m%d")}.log',
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
@@ -30,12 +28,8 @@ class VectorStore:
             chunk_size=1000,
             chunk_overlap=200
         )
-        self.persist_dir = os.path.join('/data', "chroma_db")
+        self.persist_dir = "chroma_db"
         self.active_collection = None
-        self.supabase = create_client(
-            os.getenv('SUPABASE_URL'),
-            os.getenv('SUPABASE_KEY')
-        )
         
         # Create persist directory if it doesn't exist
         if not os.path.exists(self.persist_dir):
@@ -62,24 +56,16 @@ class VectorStore:
         except Exception as e:
             self.logger.error(f"Error cleaning up collection: {str(e)}")
             # Continue with new collection creation even if cleanup fails
-
-    def load_to_vectorstore(self, markdown_filename):
+    
+    def load_to_vectorstore(self, markdown_path):
         try:
-            self.logger.info(f"Loading document {markdown_filename}")
+            self.logger.info(f"Loading document from {markdown_path}")
             
             # Clean up previous collection
             self.cleanup_previous_collection()
             
-            # Download file from Supabase
-            temp_path = os.path.join('/data', markdown_filename)
-            with open(temp_path, 'wb') as f:
-                data = self.supabase.storage \
-                    .from_('markdown-files') \
-                    .download(markdown_filename)
-                f.write(data)
-            
             # Create new collection
-            loader = TextLoader(temp_path)
+            loader = TextLoader(markdown_path)
             docs = self.text_splitter.split_documents(loader.load())
             
             collection_name = f"pdf_docs_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -91,9 +77,6 @@ class VectorStore:
                 persist_directory=self.persist_dir,
                 collection_name=collection_name
             )
-            
-            # Cleanup temp file
-            os.remove(temp_path)
             
             # Update active collection
             self.active_collection = collection_name

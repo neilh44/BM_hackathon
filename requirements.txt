@@ -9,3 +9,6 @@ langchain
 chromadb
 python-dotenv
 gunicorn
+supabase==2.3.1
+
+    
