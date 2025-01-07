@@ -13,4 +13,7 @@ supabase==2.3.1
 fitz
 frontend
 PyMuPDF
+langchain-chroma
+tools
+pytesseract
     

@@ -65,3 +65,7 @@ pip-log.txt
 # Testing and test coverage
 *.coverage
 .nox/
+
+
+#folder
+backup/

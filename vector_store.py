@@ -1,6 +1,6 @@
 from datetime import datetime
 from langchain_community.document_loaders import TextLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma  # Updated import
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from groq import Groq
@@ -73,7 +73,7 @@ class VectorStore:
             
             vectorstore = Chroma.from_documents(
                 docs,
-                embedding=self.embeddings,
+                self.embeddings,
                 persist_directory=self.persist_dir,
                 collection_name=collection_name
             )
@@ -87,21 +87,32 @@ class VectorStore:
             self.logger.error(f"Vector storage error: {str(e)}")
             raise
 
-    def query_document(self, query, collection_name):
+    def get_context(self, query: str, collection_name: str) -> str:
+        """Get relevant context without LLM processing"""
         try:
-            # Verify the collection exists and matches active collection
             if collection_name != self.active_collection:
-                raise ValueError("Invalid or expired collection. Please re-upload the document.")
+                raise ValueError("Invalid or expired collection")
                 
-            self.logger.info(f"Querying collection {collection_name} with: {query}")
             vectorstore = Chroma(
                 persist_directory=self.persist_dir,
                 collection_name=collection_name,
                 embedding_function=self.embeddings
             )
             
-            context_docs = vectorstore.similarity_search(query, k=3)
-            context = "\n".join(doc.page_content for doc in context_docs)
+            context_docs = vectorstore.similarity_search(query, k=5)
+            return "\n".join(doc.page_content for doc in context_docs)
+        except Exception as e:
+            self.logger.error(f"Error getting context: {str(e)}")
+            raise
+
+    def query_document(self, query: str, collection_name: str) -> str:
+        """Query document with LLM processing"""
+        try:
+            if collection_name != self.active_collection:
+                raise ValueError("Invalid or expired collection. Please re-upload the document.")
+                
+            self.logger.info(f"Querying collection {collection_name} with: {query}")
+            context = self.get_context(query, collection_name)
             
             self.logger.info("Sending query to Groq LLM")
             prompt = f"Answer based on this context:\n{context}\n\nQuestion: {query}"
@@ -114,6 +125,23 @@ class VectorStore:
             return completion.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Query error: {str(e)}")
+            raise
+
+    def query_document_raw(self, prompt: str, collection_name: str) -> str:
+        """Send raw prompt to LLM without additional processing"""
+        try:
+            if collection_name != self.active_collection:
+                raise ValueError("Invalid or expired collection")
+                
+            completion = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama3-8b-8192",
+                temperature=0.2  # Lower temperature for more precise extraction
+            )
+            
+            return completion.choices[0].message.content
+        except Exception as e:
+            self.logger.error(f"Raw query error: {str(e)}")
             raise
 
     def cleanup(self):
